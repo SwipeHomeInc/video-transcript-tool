@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Word-for-word transcripts from any video URL (X, YouTube, ...), transcribed locally with Whisper."
 readme = "README.md"
 requires-python = ">=3.10"
+license = { text = "MIT" }
 dependencies = [
     "yt-dlp",
     "faster-whisper>=1.1",

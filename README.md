@@ -14,7 +14,7 @@ Needs Python 3.10+ and [ffmpeg](https://ffmpeg.org/download.html) on your PATH
 (`brew install ffmpeg`, `sudo apt install ffmpeg`, or `winget install ffmpeg`).
 
 ```bash
-pipx install git+https://github.com/<owner>/video-transcript-tool
+pipx install git+https://github.com/SwipeHomeInc/video-transcript-tool
 ```
 
 Or from a clone:
@@ -87,3 +87,7 @@ Whisper is much faster on a GPU. Rough times for a 38-minute talk with `small`:
 .venv/bin/pip install -e '.[dev]'
 .venv/bin/python -m pytest
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
