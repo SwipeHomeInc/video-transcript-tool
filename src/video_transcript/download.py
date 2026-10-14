@@ -28,6 +28,7 @@ def download_audio(url: str, work_dir: Path, quiet: bool = False) -> tuple[Path,
         "playlist_items": "1",
         "quiet": quiet,
         "no_warnings": quiet,
+        "noprogress": quiet,
         "postprocessors": [
             {"key": "FFmpegExtractAudio", "preferredcodec": AUDIO_EXT},
         ],

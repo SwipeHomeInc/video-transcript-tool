@@ -32,13 +32,13 @@ video-transcript "https://x.com/poteto/status/2102050467505430555"
 
 The transcript prints as it's produced. When it's done, `out/` contains:
 
-- `twitter-2102050467505430555.txt`: plain text
-- `twitter-2102050467505430555.srt`: timestamped subtitles
-- `twitter-2102050467505430555.m4a`: the audio, kept so a re-run (say, with
-  a bigger model) skips the download
+- `twitter-<video id>.txt`: plain text
+- `twitter-<video id>.srt`: timestamped subtitles
+- `twitter-<video id>.m4a`: the audio, kept so a re-run (say, with a bigger
+  model) skips the download
 
 Files are named after the video's ID, so you can transcribe many videos into
-the same folder.
+the same folder. On X the video ID is not the same as the post ID in the URL.
 
 ### Options
 
