@@ -52,13 +52,17 @@ def transcribe(
     model_size: str = "small",
     language: Optional[str] = None,
     device: str = "auto",
-) -> tuple[Iterator[Segment], str, float]:
-    """Return (segments, language, language_probability).
+) -> tuple[Iterator[Segment], str, float, float]:
+    """Return (segments, language, language_probability, audio_seconds).
 
     Segments are yielded lazily as Whisper produces them.
     """
     sanitize_proxy_env()
+    # Hide huggingface_hub's "unauthenticated requests" nag; models are public.
+    from huggingface_hub.utils import logging as hf_logging
     from faster_whisper import WhisperModel
+
+    hf_logging.set_verbosity_error()
 
     # "auto" picks the fastest type the device supports (int8 on most CPUs,
     # float16 on NVIDIA GPUs).
@@ -73,4 +77,4 @@ def transcribe(
     segments = (
         Segment(start=s.start, end=s.end, text=s.text.strip()) for s in raw_segments
     )
-    return segments, info.language, info.language_probability
+    return segments, info.language, info.language_probability, info.duration

@@ -25,3 +25,22 @@ def test_cache_name_is_per_video():
     assert cache_name("Twitter", "2102050467505430555") == "twitter-2102050467505430555"
     assert cache_name("Youtube", "abc") != cache_name("Youtube", "abd")
     assert cache_name("Generic", "a/b:c") == "generic-a_b_c"
+
+
+def test_cache_name_is_capped():
+    stem = cache_name("Generic", "jsc2026m000070-Artemis_II_Receive_Special_Message_" * 3)
+    assert len(stem) <= 64
+    assert not stem.endswith(("_", "-", "."))
+
+
+def test_formatting_helpers():
+    from video_transcript.cli import _fmt_bytes, _fmt_duration
+
+    assert _fmt_duration(58.4) == "0:58"
+    assert _fmt_duration(3725) == "1:02:05"
+    assert _fmt_bytes(512) == "512 B"
+    assert _fmt_bytes(2.37 * 1024 * 1024) == "2.4 MB"
+
+
+def test_verbose_flag():
+    assert build_parser().parse_args(["u", "-v"]).verbose is True

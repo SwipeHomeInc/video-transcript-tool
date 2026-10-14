@@ -8,6 +8,14 @@ it on your own machine with Whisper
 ([faster-whisper](https://github.com/SYSTRAN/faster-whisper)). You don't need
 an API key or a subscription, and nothing gets uploaded.
 
+<p align="center">
+  <img src="docs/demo.gif" width="860"
+       alt="Terminal demo: video-transcript turns a 58-second NASA clip into a transcript plus .txt and .srt files in 16 seconds">
+</p>
+<p align="center"><sub>A real, unedited run on a 4-core machine with no GPU (long waits trimmed to
+1.4s). The clip is NASA's public-domain
+<a href="https://images.nasa.gov/details/jsc2026m000070-Artemis_II_Receive_Special_Message_from_Apollo_16_Astronaut_Charlie_Duke">message from Apollo 16 astronaut Charlie Duke to the Artemis II crew</a>.</sub></p>
+
 ## Install
 
 Needs Python 3.10+ and [ffmpeg](https://ffmpeg.org/download.html) on your PATH
@@ -50,6 +58,10 @@ the same folder. On X the video ID is not the same as the post ID in the URL.
 | `-l, --language` | auto | Spoken language code, e.g. `en`. Set it if auto-detect guesses wrong. |
 | `--device` | `auto` | `cpu` or `cuda`. `auto` uses an NVIDIA GPU if there is one. |
 | `-q, --quiet` | off | Don't print the transcript while it runs |
+| `-v, --verbose` | off | Show yt-dlp's full download log (useful when a download fails) |
+
+Colors turn off automatically when output isn't a terminal, or when
+[`NO_COLOR`](https://no-color.org) is set.
 
 `python -m video_transcript ...` works too.
 
@@ -86,6 +98,16 @@ Whisper is much faster on a GPU. Rough times for a 38-minute talk with `small`:
 ```bash
 .venv/bin/pip install -e '.[dev]'
 .venv/bin/python -m pytest
+```
+
+To regenerate `docs/demo.gif` from a real run:
+
+```bash
+.venv/bin/pip install -e '.[demo]'
+.venv/bin/python scripts/record_demo.py rec.json -- <url>
+head -n 7 out/*.srt > srt.txt
+.venv/bin/python scripts/render_demo.py rec.json "video-transcript <url>" docs/demo.gif \
+    --after-cmd "head -n 7 out/*.srt" --after-output srt.txt
 ```
 
 ## License

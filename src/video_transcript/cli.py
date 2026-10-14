@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+import time
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -41,26 +43,108 @@ def build_parser() -> argparse.ArgumentParser:
                    help="where to run Whisper (default: auto)")
     p.add_argument("-q", "--quiet", action="store_true",
                    help="don't print the transcript as it's produced")
+    p.add_argument("-v", "--verbose", action="store_true",
+                   help="show yt-dlp's full download log")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return p
 
 
+def _fmt_bytes(n: float) -> str:
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{n:.0f} {unit}" if unit in ("B", "KB") else f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} GB"
+
+
+def _fmt_duration(seconds: float) -> str:
+    seconds = int(round(seconds))
+    h, rem = divmod(seconds, 3600)
+    m, s = divmod(rem, 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def _use_color() -> bool:
+    # https://no-color.org
+    return sys.stderr.isatty() and not os.environ.get("NO_COLOR")
+
+
+def _style(text: str, code: str, enabled: bool) -> str:
+    return f"\033[{code}m{text}\033[0m" if enabled else text
+
+
+class _Progress:
+    """One-line download progress on stderr (redrawn in place on a terminal)."""
+
+    WIDTH = 24
+
+    def __init__(self, enabled: bool) -> None:
+        self.enabled = enabled
+        self.tty = sys.stderr.isatty()
+        self.shown = False
+
+    def __call__(self, done: int, total: Optional[int]) -> None:
+        if not self.enabled or not self.tty:
+            return
+        if total:
+            frac = min(done / total, 1.0)
+            filled = int(frac * self.WIDTH)
+            bar = (_style("\u2588" * filled, "36", _use_color())
+                   + _style("\u2591" * (self.WIDTH - filled), "2", _use_color()))
+            line = f"  {bar} {frac:4.0%}  {_fmt_bytes(done)}"
+        else:
+            line = f"  {_fmt_bytes(done)}"
+        sys.stderr.write("\r" + line + "\033[K")
+        sys.stderr.flush()
+        self.shown = True
+
+    def finish(self) -> None:
+        if self.shown:
+            sys.stderr.write("\n")
+            sys.stderr.flush()
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
+    # Never crash on a transcript character the console encoding can't show
+    # (e.g. Windows cp1252 when output is redirected).
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
 
     from .download import download_audio
     from .transcriber import transcribe
 
-    print(f"[1/2] Fetching audio from {args.url} ...", file=sys.stderr, flush=True)
-    audio_path, _info = download_audio(args.url, args.output_dir, quiet=args.quiet)
-    print(f"      Audio: {audio_path}", file=sys.stderr, flush=True)
+    color = _use_color()
 
-    print(f"[2/2] Transcribing with Whisper ({args.model}) ...",
-          file=sys.stderr, flush=True)
-    segments_iter, language, prob = transcribe(
+    def status(msg: str) -> None:
+        print(msg, file=sys.stderr, flush=True)
+
+    def step(msg: str) -> None:
+        status(_style("\u25b8 ", "1;36", color) + _style(msg, "1", color))
+
+    def detail(msg: str) -> None:
+        status(_style(f"  {msg}", "2", color))
+
+    started = time.monotonic()
+    step("Fetching audio")
+    progress = _Progress(enabled=not args.verbose)
+    audio_path, info = download_audio(
+        args.url, args.output_dir, verbose=args.verbose, on_progress=progress,
+    )
+    progress.finish()
+    title = info.get("title")
+    # Direct file links have no real title, just the filename (== the ID).
+    if title and title != info.get("id"):
+        detail(f'"{title}"')
+
+    step(f"Transcribing with Whisper ({args.model})")
+    segments_iter, language, prob, audio_seconds = transcribe(
         audio_path, model_size=args.model, language=args.language, device=args.device,
     )
-    print(f"      Language: {language} (p={prob:.2f})", file=sys.stderr, flush=True)
+    detail(f"{_fmt_duration(audio_seconds)} of audio \u00b7 language: {language} "
+           f"({prob:.0%} sure)")
+    status("")
 
     segments = []
     for seg in segments_iter:
@@ -74,9 +158,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         path.write_text(FORMATTERS[fmt](segments), encoding="utf-8")
         written.append(path)
 
-    print("\nDone. Wrote:", file=sys.stderr)
+    status("")
+    status(_style("\u2713 ", "1;32", color)
+           + _style(f"Done in {_fmt_duration(time.monotonic() - started)}", "1", color))
     for path in written:
-        print(f"  {path}", file=sys.stderr)
+        detail(str(path))
     return 0
 
 

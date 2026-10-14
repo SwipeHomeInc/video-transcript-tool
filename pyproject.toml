@@ -17,6 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+demo = ["pillow>=10"]
 
 [project.scripts]
 video-transcript = "video_transcript.cli:main"
