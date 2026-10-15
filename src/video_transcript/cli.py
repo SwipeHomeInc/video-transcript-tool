@@ -41,6 +41,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="spoken language code, e.g. en (default: auto-detect)")
     p.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda"],
                    help="where to run Whisper (default: auto)")
+    p.add_argument("-b", "--batch-size", type=int, default=8, metavar="N",
+                   help="speech chunks to transcribe at once; higher is faster but uses "
+                        "more memory, 1 turns batching off (default: 8)")
     p.add_argument("-q", "--quiet", action="store_true",
                    help="don't print the transcript as it's produced")
     p.add_argument("-v", "--verbose", action="store_true",
@@ -150,6 +153,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     step(f"Transcribing with Whisper ({args.model})")
     segments_iter, language, prob, audio_seconds = transcribe(
         audio_path, model_size=args.model, language=args.language, device=args.device,
+        batch_size=args.batch_size,
     )
     detail(f"{_fmt_duration(audio_seconds)} of audio \u00b7 language: {language} "
            f"({prob:.0%} sure)")

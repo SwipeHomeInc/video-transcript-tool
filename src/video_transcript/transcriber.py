@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     import numpy as np
 
 SAMPLE_RATE = 16_000  # what Whisper expects
+DEFAULT_BATCH_SIZE = 8
 
 
 def sanitize_proxy_env() -> None:
@@ -52,28 +53,38 @@ def transcribe(
     model_size: str = "small",
     language: Optional[str] = None,
     device: str = "auto",
+    batch_size: int = DEFAULT_BATCH_SIZE,
 ) -> tuple[Iterator[Segment], str, float, float]:
     """Return (segments, language, language_probability, audio_seconds).
 
-    Segments are yielded lazily as Whisper produces them.
+    Segments are yielded lazily as Whisper produces them. batch_size > 1
+    transcribes several speech chunks at once (much faster); 1 runs them one
+    after another, the way Whisper does by default.
     """
     sanitize_proxy_env()
     # Hide huggingface_hub's "unauthenticated requests" nag; models are public.
     from huggingface_hub.utils import logging as hf_logging
-    from faster_whisper import WhisperModel
+    from faster_whisper import BatchedInferencePipeline, WhisperModel
 
     hf_logging.set_verbosity_error()
 
     # "auto" picks the fastest type the device supports (int8 on most CPUs,
     # float16 on NVIDIA GPUs).
     model = WhisperModel(model_size, device=device, compute_type="auto")
-    raw_segments, info = model.transcribe(
-        load_audio(audio_path),
+    options = dict(
         beam_size=5,
         language=language,
         # Skip silence and music; Whisper tends to invent text there.
         vad_filter=True,
     )
+    if batch_size > 1:
+        # Batched mode skips timestamp prediction by default, which would
+        # make each .srt cue a ~30s chunk. Keep sentence-level timing.
+        raw_segments, info = BatchedInferencePipeline(model).transcribe(
+            load_audio(audio_path), batch_size=batch_size, without_timestamps=False, **options,
+        )
+    else:
+        raw_segments, info = model.transcribe(load_audio(audio_path), **options)
     segments = (
         Segment(start=s.start, end=s.end, text=s.text.strip()) for s in raw_segments
     )
