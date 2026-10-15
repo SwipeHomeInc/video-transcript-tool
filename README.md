@@ -68,6 +68,36 @@ Colors turn off automatically when output isn't a terminal, or when
 
 `python -m video_transcript ...` works too.
 
+## Use it from Claude Code
+
+This repo is also a [Claude Code plugin](https://code.claude.com/docs/en/plugins).
+Install it once and you can paste a video link into Claude Code and say
+"transcribe this". Claude installs the tool if needed, runs it, and gives you
+a summary, quotes or answers about the video.
+
+In a Claude Code session (2.1.275 or later):
+
+```
+/plugin install video-transcript --marketplace SwipeHomeInc/video-transcript-tool
+```
+
+On older versions, add the marketplace first:
+
+```
+/plugin marketplace add SwipeHomeInc/video-transcript-tool
+/plugin install video-transcript@video-transcript-tool
+```
+
+Then just ask, or call the skill directly:
+
+```
+/video-transcript:transcribe https://x.com/…/status/…
+```
+
+The command-line tool still does the work on your machine, so the
+requirements above (Python and ffmpeg) apply. The plugin is in
+[`plugins/video-transcript`](plugins/video-transcript).
+
 ## Speed
 
 Whisper is much faster on a GPU. Rough times for a 38-minute talk with `small`:

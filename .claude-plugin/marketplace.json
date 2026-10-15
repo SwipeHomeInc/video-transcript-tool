@@ -1,0 +1,15 @@
+{
+  "name": "video-transcript-tool",
+  "description": "Turn any video link (X, YouTube, ...) into a transcript, transcribed locally with Whisper.",
+  "owner": {
+    "name": "SwipeHomeInc",
+    "url": "https://github.com/SwipeHomeInc"
+  },
+  "plugins": [
+    {
+      "name": "video-transcript",
+      "source": "./plugins/video-transcript",
+      "description": "Paste a video link and get a word-for-word transcript with timestamps, then a summary or answers about it."
+    }
+  ]
+}

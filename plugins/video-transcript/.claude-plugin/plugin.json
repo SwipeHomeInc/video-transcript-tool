@@ -1,0 +1,13 @@
+{
+  "name": "video-transcript",
+  "description": "Paste a video link and get a word-for-word transcript with timestamps, then a summary or answers about it. Runs locally with Whisper.",
+  "version": "0.1.0",
+  "author": {
+    "name": "SwipeHomeInc",
+    "url": "https://github.com/SwipeHomeInc"
+  },
+  "homepage": "https://github.com/SwipeHomeInc/video-transcript-tool",
+  "repository": "https://github.com/SwipeHomeInc/video-transcript-tool",
+  "license": "MIT",
+  "keywords": ["transcript", "transcription", "whisper", "video", "x", "twitter", "youtube", "subtitles"]
+}
