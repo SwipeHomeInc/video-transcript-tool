@@ -62,3 +62,9 @@ def test_explain_error():
 def test_cookies_flag():
     args = build_parser().parse_args(["u", "--cookies-from-browser", "firefox"])
     assert args.cookies_from_browser == "firefox"
+
+
+def test_batch_size_flag():
+    assert build_parser().parse_args(["u"]).batch_size == 1
+    assert build_parser().parse_args(["u", "-b", "16"]).batch_size == 16
+    assert build_parser().parse_args(["u", "--fast"]).batch_size == 8
