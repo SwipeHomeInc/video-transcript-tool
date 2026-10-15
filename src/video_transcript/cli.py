@@ -45,6 +45,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="don't print the transcript as it's produced")
     p.add_argument("-v", "--verbose", action="store_true",
                    help="show yt-dlp's full download log")
+    p.add_argument("--cookies-from-browser", metavar="BROWSER",
+                   help="use your logged-in session from this browser (chrome, firefox, "
+                        "safari, edge, ...) for videos that need an account")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return p
 
@@ -112,7 +115,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(errors="replace")
 
-    from .download import download_audio
+    from .download import DownloadFailed, download_audio
     from .transcriber import transcribe
 
     color = _use_color()
@@ -129,9 +132,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     started = time.monotonic()
     step("Fetching audio")
     progress = _Progress(enabled=not args.verbose)
-    audio_path, info = download_audio(
-        args.url, args.output_dir, verbose=args.verbose, on_progress=progress,
-    )
+    try:
+        audio_path, info = download_audio(
+            args.url, args.output_dir, verbose=args.verbose, on_progress=progress,
+            cookies_from_browser=args.cookies_from_browser,
+        )
+    except DownloadFailed as e:
+        progress.finish()
+        status(_style("\u2717 ", "1;31", color) + str(e))
+        return 1
     progress.finish()
     title = info.get("title")
     # Direct file links have no real title, just the filename (== the ID).

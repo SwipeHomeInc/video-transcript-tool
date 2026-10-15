@@ -44,3 +44,21 @@ def test_formatting_helpers():
 
 def test_verbose_flag():
     assert build_parser().parse_args(["u", "-v"]).verbose is True
+
+
+def test_explain_error():
+    from video_transcript.download import explain_error
+
+    assert "No video found" in explain_error(
+        "ERROR: [twitter] 123: No video formats found!; please report this issue")
+    assert "logged-in" in explain_error("ERROR: [twitter] 1: NSFW tweet requires authentication")
+    assert "isn't supported" in explain_error("ERROR: Unsupported URL: https://example.com")
+    assert "doesn't exist" in explain_error("ERROR: Unable to download webpage: HTTP Error 404")
+    other = explain_error("ERROR: something new broke")
+    assert other.startswith("Download failed: something new broke")
+    assert "pipx upgrade" in other
+
+
+def test_cookies_flag():
+    args = build_parser().parse_args(["u", "--cookies-from-browser", "firefox"])
+    assert args.cookies_from_browser == "firefox"

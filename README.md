@@ -59,6 +59,7 @@ the same folder. On X the video ID is not the same as the post ID in the URL.
 | `--device` | `auto` | `cpu` or `cuda`. `auto` uses an NVIDIA GPU if there is one. |
 | `-q, --quiet` | off | Don't print the transcript while it runs |
 | `-v, --verbose` | off | Show yt-dlp's full download log (useful when a download fails) |
+| `--cookies-from-browser` | off | Use your logged-in session from `chrome`, `firefox`, `safari`, `edge`, ... for videos that need an account |
 
 Colors turn off automatically when output isn't a terminal, or when
 [`NO_COLOR`](https://no-color.org) is set.
@@ -83,9 +84,13 @@ Whisper is much faster on a GPU. Rough times for a 38-minute talk with `small`:
   output for proper nouns.
 - Silence and music are skipped (voice-activity filter), which stops Whisper
   from inventing text during long pauses.
-- Some X videos need a logged-in account to download. yt-dlp's X support also
-  breaks now and then when X changes things. If downloads fail, update yt-dlp
-  with `pipx upgrade video-transcript` or `pip install -U yt-dlp`.
+- Some X videos need a logged-in account. Log in to X in your browser, then
+  add `--cookies-from-browser chrome` (or your browser's name).
+- The link has to point at a post with a video attached. A post that only
+  links somewhere, or has just images, gets a "No video found" message.
+- yt-dlp's X support breaks now and then when X changes things. If downloads
+  that used to work start failing, update with `pipx upgrade video-transcript`
+  or `pip install -U yt-dlp`.
 - Audio is decoded with ffmpeg rather than PyAV. faster-whisper 1.2.1's
   built-in decoder calls `av.open(..., metadata_errors=...)`, which PyAV 13+
   removed.
