@@ -41,7 +41,8 @@ video-transcript "<url>" -o transcripts -q
 
 - Always quote the URL. Strip tracking parameters only if the link fails.
 - `-o transcripts` keeps output in one folder; files are named after the video,
-  so many videos can share it.
+  so many videos can share it. The tool creates the folder itself, so don't
+  run `mkdir` or `cd` first (that only adds a permission prompt).
 - `-q` stops the transcript scrolling past in the tool output; you'll read the
   file instead.
 - Add `--fast` only if the user asks for speed. It's about 2x faster on CPU but
