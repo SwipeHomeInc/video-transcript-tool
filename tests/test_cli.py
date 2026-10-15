@@ -65,5 +65,6 @@ def test_cookies_flag():
 
 
 def test_batch_size_flag():
-    assert build_parser().parse_args(["u"]).batch_size == 8
-    assert build_parser().parse_args(["u", "-b", "1"]).batch_size == 1
+    assert build_parser().parse_args(["u"]).batch_size == 1
+    assert build_parser().parse_args(["u", "-b", "16"]).batch_size == 16
+    assert build_parser().parse_args(["u", "--fast"]).batch_size == 8

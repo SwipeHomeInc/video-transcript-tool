@@ -58,6 +58,8 @@ the same folder. On X the video ID is not the same as the post ID in the URL.
 | `-l, --language` | auto | Spoken language code, e.g. `en`. Set it if auto-detect guesses wrong. |
 | `--device` | `auto` | `cpu` or `cuda`. `auto` uses an NVIDIA GPU if there is one. |
 | `-q, --quiet` | off | Don't print the transcript while it runs |
+| `--fast` | off | About 2× faster, but can occasionally skip a phrase. Same as `-b 8`. |
+| `-b, --batch-size` | `1` | Speech chunks to transcribe at once (`--fast` uses 8) |
 | `-v, --verbose` | off | Show yt-dlp's full download log (useful when a download fails) |
 | `--cookies-from-browser` | off | Use your logged-in session from `chrome`, `firefox`, `safari`, `edge`, ... for videos that need an account |
 
@@ -76,7 +78,13 @@ Whisper is much faster on a GPU. Rough times for a 38-minute talk with `small`:
 | Modern 8-core laptop | 3–6 min |
 | NVIDIA GPU | 1–2 min |
 
-`base` is about 2–3× faster than `small` but makes more mistakes.
+Two ways to go faster, each with a cost:
+
+- `--fast` transcribes several chunks at once. On a 4-core CPU with `small`
+  it ran 5.6× realtime vs 2.9× (3-minute sample: 32s instead of 62s). In
+  that test it also dropped a couple of phrases the default mode caught,
+  so it's off by default.
+- `--model base` is about 2–3× faster than `small` but mishears more words.
 
 ## Notes
 

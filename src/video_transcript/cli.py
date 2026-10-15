@@ -41,9 +41,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="spoken language code, e.g. en (default: auto-detect)")
     p.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda"],
                    help="where to run Whisper (default: auto)")
-    p.add_argument("-b", "--batch-size", type=int, default=8, metavar="N",
-                   help="speech chunks to transcribe at once; higher is faster but uses "
-                        "more memory, 1 turns batching off (default: 8)")
+    p.add_argument("-b", "--batch-size", type=int, default=1, metavar="N",
+                   help="speech chunks to transcribe at once. 8 is about 2x faster but can "
+                        "occasionally skip a phrase (default: 1, the careful mode)")
+    p.add_argument("--fast", dest="batch_size", action="store_const", const=8,
+                   help="shortcut for --batch-size 8")
     p.add_argument("-q", "--quiet", action="store_true",
                    help="don't print the transcript as it's produced")
     p.add_argument("-v", "--verbose", action="store_true",

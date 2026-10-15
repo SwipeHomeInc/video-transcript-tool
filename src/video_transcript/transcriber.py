@@ -12,7 +12,9 @@ if TYPE_CHECKING:
     import numpy as np
 
 SAMPLE_RATE = 16_000  # what Whisper expects
-DEFAULT_BATCH_SIZE = 8
+# Batching (> 1) is about 2x faster on CPU but occasionally drops a phrase,
+# so it's opt-in; the default keeps Whisper's slower, more careful pass.
+DEFAULT_BATCH_SIZE = 1
 
 
 def sanitize_proxy_env() -> None:
@@ -58,8 +60,9 @@ def transcribe(
     """Return (segments, language, language_probability, audio_seconds).
 
     Segments are yielded lazily as Whisper produces them. batch_size > 1
-    transcribes several speech chunks at once (much faster); 1 runs them one
-    after another, the way Whisper does by default.
+    transcribes several speech chunks at once (about 2x faster on CPU, but it
+    can occasionally skip a phrase); 1 runs them one after another, the way
+    Whisper does by default.
     """
     sanitize_proxy_env()
     # Hide huggingface_hub's "unauthenticated requests" nag; models are public.
