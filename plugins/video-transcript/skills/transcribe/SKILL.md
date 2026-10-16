@@ -73,6 +73,11 @@ The tool prints one line starting with `✗` that explains the problem. Act on i
 The tool prints the paths it wrote under `✓ Done in ...`: a `.txt` (plain
 text) and an `.srt` (timestamped subtitles), both named after the video ID.
 
+If it prints `✓ Already transcribed` instead, that video was done before:
+the paths listed are the existing transcripts, so read those. Only re-run
+with `--force` if the user asks to redo it (say, with `--model medium` for
+better accuracy).
+
 1. Tell the user where the files are.
 2. Read the `.txt` and give a short summary: what the video covers and its main
    points. Offer to pull out specific quotes, timestamps (from the `.srt`), or

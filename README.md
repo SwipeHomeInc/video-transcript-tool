@@ -48,6 +48,11 @@ The transcript prints as it's produced. When it's done, `out/` contains:
 Files are named after the video's ID, so you can transcribe many videos into
 the same folder. On X the video ID is not the same as the post ID in the URL.
 
+Running the same link again is instant: the tool looks up the video's ID
+(about a second, no download), sees the transcripts are already there, and
+prints `✓ Already transcribed` with their paths. Add `--force` to transcribe
+it again, for example with a bigger `--model`.
+
 ### Options
 
 | Flag | Default | What it does |
@@ -60,6 +65,7 @@ the same folder. On X the video ID is not the same as the post ID in the URL.
 | `-q, --quiet` | off | Don't print the transcript while it runs |
 | `--fast` | off | About 2× faster, but can occasionally skip a phrase. Same as `-b 8`. |
 | `-b, --batch-size` | `1` | Speech chunks to transcribe at once (`--fast` uses 8) |
+| `--force` | off | Transcribe again even if this video's transcripts already exist |
 | `-v, --verbose` | off | Show yt-dlp's full download log (useful when a download fails) |
 | `--cookies-from-browser` | off | Use your logged-in session from `chrome`, `firefox`, `safari`, `edge`, ... for videos that need an account |
 

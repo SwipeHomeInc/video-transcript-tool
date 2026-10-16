@@ -46,6 +46,8 @@ def build_parser() -> argparse.ArgumentParser:
                         "occasionally skip a phrase (default: 1, the careful mode)")
     p.add_argument("--fast", dest="batch_size", action="store_const", const=8,
                    help="shortcut for --batch-size 8")
+    p.add_argument("--force", action="store_true",
+                   help="transcribe again even if transcripts for this video already exist")
     p.add_argument("-q", "--quiet", action="store_true",
                    help="don't print the transcript as it's produced")
     p.add_argument("-v", "--verbose", action="store_true",
@@ -120,7 +122,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(errors="replace")
 
-    from .download import DownloadFailed, download_audio
+    from .download import DownloadFailed, download_audio, resolve_video
     from .transcriber import transcribe
 
     color = _use_color()
@@ -134,18 +136,39 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     def detail(msg: str) -> None:
         status(_style(f"  {msg}", "2", color))
 
+    def fail(e: Exception) -> int:
+        status(_style("\u2717 ", "1;31", color) + str(e))
+        return 1
+
     started = time.monotonic()
     step("Fetching audio")
+    try:
+        info, stem = resolve_video(
+            args.url, verbose=args.verbose, cookies_from_browser=args.cookies_from_browser,
+        )
+    except DownloadFailed as e:
+        return fail(e)
+
+    # A quick metadata lookup tells us which files this link maps to, so a
+    # repeat link costs a second instead of a download plus transcription.
+    outputs = [args.output_dir / f"{stem}.{fmt}" for fmt in args.formats]
+    if not args.force and all(p.exists() for p in outputs):
+        status(_style("\u2713 ", "1;32", color)
+               + _style("Already transcribed", "1", color)
+               + _style(" (use --force to redo)", "2", color))
+        for path in outputs:
+            detail(str(path))
+        return 0
+
     progress = _Progress(enabled=not args.verbose)
     try:
-        audio_path, info = download_audio(
-            args.url, args.output_dir, verbose=args.verbose, on_progress=progress,
+        audio_path = download_audio(
+            info, stem, args.output_dir, verbose=args.verbose, on_progress=progress,
             cookies_from_browser=args.cookies_from_browser,
         )
     except DownloadFailed as e:
         progress.finish()
-        status(_style("\u2717 ", "1;31", color) + str(e))
-        return 1
+        return fail(e)
     progress.finish()
     title = info.get("title")
     # Direct file links have no real title, just the filename (== the ID).
@@ -167,16 +190,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if not args.quiet:
             print(seg.text, flush=True)
 
-    written = []
-    for fmt in args.formats:
-        path = audio_path.with_suffix(f".{fmt}")
+    for fmt, path in zip(args.formats, outputs):
         path.write_text(FORMATTERS[fmt](segments), encoding="utf-8")
-        written.append(path)
 
     status("")
     status(_style("\u2713 ", "1;32", color)
            + _style(f"Done in {_fmt_duration(time.monotonic() - started)}", "1", color))
-    for path in written:
+    for path in outputs:
         detail(str(path))
     return 0
 
