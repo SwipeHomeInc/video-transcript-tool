@@ -68,3 +68,21 @@ def test_batch_size_flag():
     assert build_parser().parse_args(["u"]).batch_size == 1
     assert build_parser().parse_args(["u", "-b", "16"]).batch_size == 16
     assert build_parser().parse_args(["u", "--fast"]).batch_size == 8
+
+
+def test_explain_error_bot_check_is_not_reported_as_login():
+    from video_transcript.download import explain_error
+
+    # Exact wording yt-dlp gave for a public YouTube video from a cloud server.
+    msg = ("ERROR: [youtube] _itA4tuohl0: Sign in to confirm you’re not a bot. "
+           "Use --cookies-from-browser or --cookies for the authentication.")
+    out = explain_error(msg)
+    assert "blocking this network as a bot" in out
+    assert "needs a logged-in account" not in out
+
+
+def test_explain_error_rate_limit():
+    from video_transcript.download import explain_error
+
+    out = explain_error("ERROR: Unable to download webpage: HTTP Error 429: Too Many Requests")
+    assert "rate-limiting" in out

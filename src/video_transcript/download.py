@@ -33,6 +33,16 @@ def explain_error(message: str) -> str:
                 "video attached (a link preview or image won't work).")
     if "unsupported url" in m:
         return "That site isn't supported. Use a link to a post or page with a video on it."
+    # Checked before the login rule: YouTube's bot check says "Sign in to
+    # confirm you're not a bot", but the video itself is usually public.
+    if "not a bot" in m:
+        return ("The site is blocking this network as a bot. This happens a lot on "
+                "cloud servers and VPNs, even for public videos. Try from your home "
+                "internet, or re-run with --cookies-from-browser chrome "
+                "(or firefox, safari, edge, ...).")
+    if "http error 429" in m or "too many requests" in m:
+        return ("The site is rate-limiting this network (too many requests). Wait a "
+                "few minutes and try again, or try from a different network.")
     if any(k in m for k in ("login", "log in", "sign in", "authenticat", "nsfw",
                             "age-restricted", "private", "protected")):
         return ("That video needs a logged-in account. Log in to the site in your "
