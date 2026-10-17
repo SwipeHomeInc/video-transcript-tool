@@ -67,34 +67,7 @@ def cache_name(extractor: str, video_id: str) -> str:
     return re.sub(r"[^a-z0-9._-]+", "_", raw)[:MAX_STEM].rstrip("._-")
 
 
-def download_audio(
-    url: str,
-    work_dir: Path,
-    verbose: bool = False,
-    on_progress: Optional[ProgressFn] = None,
-    cookies_from_browser: Optional[str] = None,
-) -> tuple[Path, dict]:
-    """Return (audio_path, info). Skips the download if the audio is cached.
-
-    yt-dlp's own logging is shown only when verbose; otherwise progress is
-    reported through on_progress. Raises DownloadFailed with a readable
-    explanation when yt-dlp can't get the video.
-    """
-    import yt_dlp
-
-    try:
-        return _download(url, work_dir, verbose, on_progress, cookies_from_browser, yt_dlp)
-    except yt_dlp.utils.DownloadError as e:
-        raise DownloadFailed(explain_error(str(e))) from e
-
-
-def _download(url, work_dir, verbose, on_progress, cookies_from_browser, yt_dlp):
-    def hook(d: dict) -> None:
-        if on_progress and d.get("status") in ("downloading", "finished"):
-            total = d.get("total_bytes") or d.get("total_bytes_estimate")
-            on_progress(int(d.get("downloaded_bytes") or 0), int(total) if total else None)
-
-    work_dir.mkdir(parents=True, exist_ok=True)
+def _base_opts(verbose: bool, cookies_from_browser: Optional[str]) -> dict:
     opts = {
         "format": "bestaudio/best",
         # Posts with several videos come back as a playlist; take the first.
@@ -102,32 +75,80 @@ def _download(url, work_dir, verbose, on_progress, cookies_from_browser, yt_dlp)
         "quiet": not verbose,
         "no_warnings": not verbose,
         "noprogress": not verbose,
-        "progress_hooks": [hook],
-        "postprocessors": [
-            {"key": "FFmpegExtractAudio", "preferredcodec": AUDIO_EXT},
-        ],
     }
     if not verbose:
         opts["logger"] = _SilentLogger()
     if cookies_from_browser:
         opts["cookiesfrombrowser"] = (cookies_from_browser,)
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=False)
-        if info.get("_type") == "playlist":
-            entries = list(info.get("entries") or [])
-            if not entries:
-                raise DownloadFailed(explain_error("No video formats found"))
-            info = entries[0]
+    return opts
 
-        stem = cache_name(info.get("extractor_key") or "video", str(info["id"]))
-        audio_path = work_dir / f"{stem}.{AUDIO_EXT}"
-        if audio_path.exists():
-            return audio_path, info
 
-    opts["outtmpl"] = str(work_dir / f"{stem}.%(ext)s")
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        ydl.process_ie_result(info, download=True)
+def resolve_video(
+    url: str,
+    verbose: bool = False,
+    cookies_from_browser: Optional[str] = None,
+) -> tuple[dict, str]:
+    """Look the video up without downloading it. Return (info, file stem).
+
+    The stem names every file for this video, so callers can check for an
+    existing transcript before paying for a download and transcription.
+    Raises DownloadFailed with a readable explanation on failure.
+    """
+    import yt_dlp
+
+    try:
+        with yt_dlp.YoutubeDL(_base_opts(verbose, cookies_from_browser)) as ydl:
+            info = ydl.extract_info(url, download=False)
+    except yt_dlp.utils.DownloadError as e:
+        raise DownloadFailed(explain_error(str(e))) from e
+    if info.get("_type") == "playlist":
+        entries = list(info.get("entries") or [])
+        if not entries:
+            raise DownloadFailed(explain_error("No video formats found"))
+        info = entries[0]
+    return info, cache_name(info.get("extractor_key") or "video", str(info["id"]))
+
+
+def download_audio(
+    info: dict,
+    stem: str,
+    work_dir: Path,
+    verbose: bool = False,
+    on_progress: Optional[ProgressFn] = None,
+    cookies_from_browser: Optional[str] = None,
+) -> Path:
+    """Download the audio for a video from resolve_video(). Return its path.
+
+    Skips the download if the audio is already in work_dir. yt-dlp's own
+    logging is shown only when verbose; otherwise progress is reported
+    through on_progress.
+    """
+    import yt_dlp
+
+    work_dir.mkdir(parents=True, exist_ok=True)
+    audio_path = work_dir / f"{stem}.{AUDIO_EXT}"
+    if audio_path.exists():
+        return audio_path
+
+    def hook(d: dict) -> None:
+        if on_progress and d.get("status") in ("downloading", "finished"):
+            total = d.get("total_bytes") or d.get("total_bytes_estimate")
+            on_progress(int(d.get("downloaded_bytes") or 0), int(total) if total else None)
+
+    opts = _base_opts(verbose, cookies_from_browser)
+    opts.update({
+        "progress_hooks": [hook],
+        "postprocessors": [
+            {"key": "FFmpegExtractAudio", "preferredcodec": AUDIO_EXT},
+        ],
+        "outtmpl": str(work_dir / f"{stem}.%(ext)s"),
+    })
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            ydl.process_ie_result(info, download=True)
+    except yt_dlp.utils.DownloadError as e:
+        raise DownloadFailed(explain_error(str(e))) from e
 
     if not audio_path.exists():
         raise RuntimeError(f"yt-dlp finished but {audio_path} was not created")
-    return audio_path, info
+    return audio_path
