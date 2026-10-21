@@ -106,11 +106,22 @@ requirements above (Python and ffmpeg) apply. The plugin is in
 
 ## Speed
 
-Whisper is much faster on a GPU. Rough times for a 38-minute talk with `small`:
+Measured on one machine: a 4-core cloud container with no GPU, default
+settings (`small`, careful mode, batch size 1), real X videos:
+
+| Audio length | Time to transcribe | Speed |
+|---|---|---|
+| 11:52 | 5:39 | about 2.1× realtime |
+| 1:11:24 | 30:42 | about 2.3× |
+| 2:07:30 | 40:32 | about 3.1× |
+| 3:46:21 | 1:29:32 | about 2.5× |
+
+So on that kind of machine, expect roughly a third to half the video's
+length. Whisper is much faster on a GPU. Rough estimates for a 38-minute
+talk with `small` on other machines (not from these measurements):
 
 | Machine | Time |
 |---|---|
-| 2–4 core cloud VM, no GPU | 8–15 min |
 | Modern 8-core laptop | 3–6 min |
 | NVIDIA GPU | 1–2 min |
 
