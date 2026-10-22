@@ -50,10 +50,21 @@ video-transcript "<url>" -o transcripts -q
   draft, or `--model medium` when accuracy matters more than time.
 - Add `-l <code>` (e.g. `-l es`) if the user says what language is spoken.
 
-**Long videos:** transcription runs at roughly 2-3x realtime on a laptop CPU
-with `small`, so a 60-minute video can take 20-30 minutes. For anything over
-about 10 minutes, run the command in the background if your environment
-supports it, tell the user the rough wait, and continue when it finishes.
+**Long videos:** transcription runs at roughly 2-3x realtime on a 4-core CPU
+with no GPU and the default settings, so the wait is roughly a third to half
+the video's length (a 71-minute video took about 31 minutes, a 2-hour one
+about 41). It depends on the machine; a GPU is much faster.
+
+Long runs outlast a foreground command's time limit, and a restart loses all
+the progress. So decide before the first run:
+
+- If you know the video is over about 10 minutes (the user said so, or the
+  post shows the length), run the command in the background from the start
+  if your environment supports it. Tell the user the rough wait.
+- If you don't know the length, run it in the background anyway; it costs
+  nothing for a short video. Once the tool prints `<length> of audio`, give
+  the user the rough wait.
+- Continue when it finishes. Don't restart a run that's still going.
 
 ## 3. Handle failures
 
@@ -87,6 +98,10 @@ better accuracy).
    machine. When quoting, keep quotes short and cite the timestamp.
 4. Whisper often mishears names, products, and jargon. When summarizing, flag
    any names that look misheard instead of silently "correcting" them.
+5. The account that posted the video isn't necessarily who's talking in it.
+   People often post clips of other people's talks. Name a speaker only if
+   the transcript or the post says who it is; otherwise say who posted it and
+   that the speaker isn't named. Don't credit the poster as the speaker.
 
 The video belongs to whoever made it. Transcribing for personal notes,
 research, or accessibility is the intended use; remind the user of that if

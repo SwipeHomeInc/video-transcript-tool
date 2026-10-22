@@ -10,6 +10,7 @@ from typing import Optional, Sequence
 
 from . import __version__
 from .formats import FORMATTERS
+from .transcriber import LOW_LANGUAGE_CONFIDENCE
 
 
 def parse_formats(value: str) -> list[str]:
@@ -72,6 +73,16 @@ def _fmt_duration(seconds: float) -> str:
     h, rem = divmod(seconds, 3600)
     m, s = divmod(rem, 60)
     return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def language_warning(
+    language_arg: Optional[str], language: str, prob: float,
+) -> Optional[str]:
+    """A warning when the language was auto-detected with low confidence."""
+    if language_arg is not None or prob >= LOW_LANGUAGE_CONFIDENCE:
+        return None
+    return (f"Not sure the language is {language}. If the transcript looks wrong, "
+            "rerun with -l and the spoken language's code, e.g. -l en")
 
 
 def _use_color() -> bool:
@@ -182,6 +193,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     detail(f"{_fmt_duration(audio_seconds)} of audio \u00b7 language: {language} "
            f"({prob:.0%} sure)")
+    warning = language_warning(args.language, language, prob)
+    if warning:
+        status(_style("! ", "1;33", color) + warning)
     status("")
 
     segments = []
