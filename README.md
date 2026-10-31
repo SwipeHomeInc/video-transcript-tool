@@ -53,6 +53,34 @@ Running the same link again is instant: the tool looks up the video's ID
 prints `✓ Already transcribed` with their paths. Add `--force` to transcribe
 it again, for example with a bigger `--model`.
 
+### Re-uploads of a video you already have
+
+The same video posted by another account gets a new ID, so the check above
+misses it. Before downloading, the tool also compares the link with what's
+already in the output folder:
+
+1. **Length and caption** (from the metadata lookup, no download). Same
+   length within 3% or 30 seconds, whichever is larger, plus a caption that's
+   at least 80% similar, counts as a match.
+2. **The opening.** If a transcript of about the same length exists but the
+   caption doesn't settle it (old transcripts have none), the tool downloads
+   just the first 90 seconds, transcribes them with the `base` model, and
+   compares them with the first two minutes of that transcript. On a 4-core
+   CPU this takes about 15 seconds. The first time, it also downloads the
+   `base` model (about 140 MB). Videos with no same-length transcript skip
+   this step.
+
+On a match it stops and prints `! Likely already transcribed as <file>`, with
+the date and why it matched. Add `--force` to transcribe it anyway. A
+download error during the check never stops the run; it just transcribes.
+
+The details live in `.index.json` in the output folder: for each transcript,
+the URL, site, video ID, caption, length, opening text and date. It's updated
+after every run (including `--force` runs). The first time it's needed, it's
+built from the `.srt` files already in the folder, with the length taken
+from the cached audio if it's still there. Delete it and it's rebuilt the
+same way, without the URLs and captions.
+
 ### Options
 
 | Flag | Default | What it does |
@@ -65,7 +93,7 @@ it again, for example with a bigger `--model`.
 | `-q, --quiet` | off | Don't print the transcript while it runs |
 | `--fast` | off | About 2× faster, but can occasionally skip a phrase. Same as `-b 8`. |
 | `-b, --batch-size` | `1` | Speech chunks to transcribe at once (`--fast` uses 8) |
-| `--force` | off | Transcribe again even if this video's transcripts already exist |
+| `--force` | off | Transcribe again even if this video's transcripts already exist, or it looks like a re-upload of one |
 | `-v, --verbose` | off | Show yt-dlp's full download log (useful when a download fails) |
 | `--cookies-from-browser` | off | Use your logged-in session from `chrome`, `firefox`, `safari`, `edge`, ... for videos that need an account |
 

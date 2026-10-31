@@ -89,6 +89,14 @@ the paths listed are the existing transcripts, so read those. Only re-run
 with `--force` if the user asks to redo it (say, with `--model medium` for
 better accuracy).
 
+If it prints `! Likely already transcribed as <file>` instead, the link looks
+like a re-upload of a video in that folder (another account, a new ID).
+Nothing was transcribed; at most the first 90 seconds were downloaded for the
+check. Tell the user which earlier transcript it matches, its date and the
+reason the tool gave, then ask before doing anything else. If they say it's
+the same video, read that transcript. Only if they say it's different, re-run
+the same command with `--force`.
+
 1. Tell the user where the files are.
 2. Read the `.txt` and give a short summary: what the video covers and its main
    points. Offer to pull out specific quotes, timestamps (from the `.srt`), or
