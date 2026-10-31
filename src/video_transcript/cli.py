@@ -137,8 +137,15 @@ def find_duplicate(args: argparse.Namespace, info: dict, stem: str, detail):
     from .download import download_opening
     from .transcriber import transcribe_opening
 
-    videos = dup.load_index(args.output_dir)
-    match, candidates = dup.check_metadata(info, stem, videos)
+    # The check is a shortcut, never a reason to fail: any error in it (an
+    # index we can't read, a download hiccup, the check's model failing to
+    # download) just means a normal run.
+    try:
+        videos = dup.load_index(args.output_dir)
+        match, candidates = dup.check_metadata(info, stem, videos)
+    except Exception as e:
+        detail(f"Couldn't read the transcript index, so skipping the duplicate check ({e})")
+        return None
     if match or not candidates:
         return match
 
@@ -156,13 +163,10 @@ def find_duplicate(args: argparse.Namespace, info: dict, stem: str, detail):
                 clip, dup.CLIP_SECONDS, model_size=dup.OPENING_MODEL,
                 language=args.language, device=args.device,
             )
-    # The check is a shortcut, never a reason to fail: any error here (a
-    # download hiccup, the check's model failing to download) just means a
-    # normal run.
+        match = dup.check_opening(text, info.get("duration"), candidates, videos)
     except Exception as e:
         detail(f"Couldn't check the opening, so transcribing anyway ({e})")
         return None
-    match = dup.check_opening(text, info.get("duration"), candidates, videos)
     detail(f"Opening checked in {_fmt_duration(time.monotonic() - started)}"
            + ("" if match else ": no match"))
     return match
@@ -266,7 +270,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     for fmt, path in zip(args.formats, outputs):
         path.write_text(FORMATTERS[fmt](segments), encoding="utf-8")
     transcript = outputs[args.formats.index("txt")] if "txt" in args.formats else outputs[0]
-    record(args.output_dir, stem, info, args.url, audio_seconds, segments, transcript.name)
+    try:
+        record(args.output_dir, stem, info, args.url, audio_seconds, segments,
+               transcript.name)
+    except OSError as e:
+        status(_style("! ", "1;33", color)
+               + f"Transcripts saved, but the duplicate index wasn't updated ({e})")
 
     status("")
     status(_style("\u2713 ", "1;32", color)

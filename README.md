@@ -61,7 +61,9 @@ already in the output folder:
 
 1. **Length and caption** (from the metadata lookup, no download). Same
    length within 3% or 30 seconds, whichever is larger, plus a caption that's
-   at least 80% similar, counts as a match.
+   at least 80% similar, counts as a match. On X the caption is the post's
+   text; elsewhere it's the title, since channels reuse the same description
+   on every video. Captions under 5 words and 30 characters never decide.
 2. **The opening.** If a transcript of about the same length exists but the
    caption doesn't settle it (old transcripts have none), the tool downloads
    just the first 90 seconds, transcribes them with the `base` model, and

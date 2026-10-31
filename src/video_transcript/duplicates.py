@@ -31,7 +31,17 @@ MIN_DURATION_TOLERANCE = 30.0
 
 # Captions are compared after normalizing (case, punctuation, links).
 TITLE_MATCH = 0.8
-TITLE_COMPARE_CHARS = 200
+TITLE_COMPARE_CHARS = 500
+# A caption this short ("Wow") says too little to decide on its own.
+MIN_CAPTION_CHARS = 30
+MIN_CAPTION_WORDS = 5
+# A shorter caption at least this share of the longer one's length is
+# compared as a prefix, like one that ends in "..." (a cut-off title).
+PREFIX_SHARE = 0.8
+# Sites where the description is the post itself. Elsewhere (YouTube, ...)
+# descriptions often share a channel's sponsor/subscribe text, so the title
+# is compared instead.
+DESCRIPTION_IS_CAPTION = {"twitter"}
 
 # The index keeps the first OPENING_SECONDS of each transcript; the check
 # transcribes the first CLIP_SECONDS of the new video. The stored opening is
@@ -41,7 +51,9 @@ CLIP_SECONDS = 90.0
 # Share of word triples in common (of the shorter text). Unrelated speech
 # shares almost none; two Whisper runs over the same audio share most.
 OPENING_MATCH = 0.5
-MIN_OPENING_TRIPLES = 10
+# A channel's stock intro is a dozen or so words; an opening needs well
+# past that before it can decide anything.
+MIN_OPENING_TRIPLES = 40
 # The clip is transcribed with a small, fast model whatever --model says:
 # on the real pair, base took 9s and matched 96%; small took 22s for 95%.
 OPENING_MODEL = "base"
@@ -69,10 +81,16 @@ def normalize(text: Optional[str]) -> str:
 
 
 def caption(info: dict) -> Optional[str]:
-    """The post's text: the description, or the title without 'uploader - '."""
-    desc = (info.get("description") or "").strip()
-    if desc:
-        return desc
+    """What the video is called: on X the post's text, elsewhere the title.
+
+    X titles are 'uploader - ' plus the start of the post, so the
+    description (the whole post) is used there. Other sites' descriptions
+    are left out because a channel reuses the same boilerplate on every video.
+    """
+    if str(info.get("extractor_key") or "").lower() in DESCRIPTION_IS_CAPTION:
+        desc = (info.get("description") or "").strip()
+        if desc:
+            return desc
     title = (info.get("title") or "").strip()
     # Direct file links have no real title, just the filename (== the ID).
     if not title or title == str(info.get("id")):
@@ -84,16 +102,25 @@ def caption(info: dict) -> Optional[str]:
 
 
 def title_similarity(a: Optional[str], b: Optional[str]) -> Optional[float]:
-    """0..1 similarity of two captions, or None if either is missing.
+    """0..1 similarity of two captions, or None if they can't decide.
 
-    Titles are often cut short ("...Te..."), so only as much of the longer
-    one as the shorter one has is compared.
+    None when either is missing or the shorter one is too short to mean
+    anything. Titles are often cut short ("...Te..."), so when the shorter
+    one looks cut off, or is most of the longer one's length, only as much
+    of the longer one is compared; otherwise the whole captions are.
     """
-    a, b = normalize(a), normalize(b)
     if not a or not b:
         return None
-    n = min(len(a), len(b), TITLE_COMPARE_CHARS)
-    return SequenceMatcher(None, a[:n], b[:n], autojunk=False).ratio()
+    short, long_ = sorted((a, b), key=lambda t: len(normalize(t)))
+    ns, nl = normalize(short), normalize(long_)
+    if len(ns) < MIN_CAPTION_CHARS and len(ns.split()) < MIN_CAPTION_WORDS:
+        return None
+    cut_off = short.rstrip().endswith(("...", "\u2026"))
+    if cut_off or len(ns) >= PREFIX_SHARE * len(nl):
+        nl = nl[:len(ns)]
+    return SequenceMatcher(
+        None, ns[:TITLE_COMPARE_CHARS], nl[:TITLE_COMPARE_CHARS], autojunk=False,
+    ).ratio()
 
 
 def durations_close(a: Optional[float], b: Optional[float]) -> bool:
@@ -182,7 +209,17 @@ def _read(path: Path) -> dict:
     except (OSError, ValueError):
         return {}
     videos = data.get("videos") if isinstance(data, dict) else None
-    return videos if isinstance(videos, dict) else {}
+    if not isinstance(videos, dict):
+        return {}
+    # Skip entries a hand edit or another tool left in a shape we can't use.
+    return {
+        stem: entry for stem, entry in videos.items()
+        if isinstance(entry, dict) and _is_seconds(entry.get("duration"))
+    }
+
+
+def _is_seconds(value) -> bool:
+    return value is None or (isinstance(value, (int, float)) and not isinstance(value, bool))
 
 
 def save_index(output_dir: Path, videos: dict) -> None:

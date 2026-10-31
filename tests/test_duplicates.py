@@ -9,20 +9,29 @@ import video_transcript.transcriber as transcriber
 from video_transcript.cli import main
 from video_transcript.formats import Segment, to_srt
 
-OPENING = (
-    "Welcome back to the workshop. Today we are going to rebuild the kitchen "
-    "cabinets from scratch, starting with the frame, then the doors, and "
-    "finally the hardware. Grab a tape measure and a pencil before we begin."
+# A channel's stock intro, said at the start of every video (14 words).
+INTRO = "Hey everyone, welcome back to the channel, and thanks so much for being here today. "
+OPENING = INTRO + (
+    "Today we are going to rebuild the kitchen cabinets from scratch, starting "
+    "with the frame, then the doors, and finally the hardware. Grab a tape "
+    "measure and a pencil before we begin. The first thing to check is whether "
+    "the old boxes are square, because if they are not, nothing you hang on "
+    "them will ever line up, no matter how careful you are with the doors."
 )
 # The same speech as another Whisper run might write it.
 OPENING_RERUN = (
-    "welcome back to the workshop today we're going to rebuild the kitchen "
-    "cabinets from scratch starting with the frame then the doors and "
-    "finally the hardware grab a tape measure and a pencil before we begin"
+    "hey everyone welcome back to the channel and thanks so much for being here "
+    "today today we're going to rebuild the kitchen cabinets from scratch "
+    "starting with the frame then the doors and finally the hardware grab a "
+    "tape measure and a pencil before we begin the first thing to check is "
+    "whether the old boxes are square because if they're not nothing you hang "
+    "on them will ever line up no matter how careful you are with the doors"
 )
-OTHER_SPEECH = (
+OTHER_SPEECH = INTRO + (
     "In this episode we talk about interest rates, what the central bank did "
-    "last month, and how that changes the math on refinancing a mortgage this year."
+    "last month, and how that changes the math on refinancing a mortgage this "
+    "year. We will walk through two real examples, one with a fixed rate and "
+    "one with an adjustable rate, and look at the closing costs on each."
 )
 
 NEW_INFO = {
@@ -107,26 +116,77 @@ def test_duration_tolerance():
 def test_caption_strips_uploader_and_ignores_filenames():
     assert dup.caption({"title": "rose - Big talk", "uploader": "rose"}) == "Big talk"
     assert dup.caption({"title": "clip", "id": "clip"}) is None
-    assert dup.caption({"title": "x", "description": "Full text"}) == "Full text"
+    tweet = {"extractor_key": "Twitter", "title": "x", "description": "Full text"}
+    assert dup.caption(tweet) == "Full text"
+
+
+def test_caption_ignores_descriptions_off_x():
+    # YouTube descriptions often start with the same sponsor/subscribe text.
+    video = {"extractor_key": "Youtube", "title": "Fixing a leaky faucet",
+             "description": "Thanks to our sponsor! Subscribe for more."}
+    assert dup.caption(video) == "Fixing a leaky faucet"
+    assert dup.caption({**video, "title": ""}) is None
 
 
 def test_title_similarity():
     a = "This lecture covers agents, harnesses and loops https://t.co/1"
     b = "this lecture covers AGENTS harnesses & loops... https://t.co/2"
     assert dup.title_similarity(a, b) >= dup.TITLE_MATCH
-    assert dup.title_similarity(a, "Quarterly earnings call, Q3") < 0.5
+    assert dup.title_similarity(a, "Quarterly earnings call for the third quarter") < 0.5
     assert dup.title_similarity(a, None) is None
     # A title cut short still matches the full caption it came from.
-    assert dup.title_similarity("This lecture covers agen...", a) >= dup.TITLE_MATCH
+    assert dup.title_similarity("This lecture covers agents, harn...", a) >= dup.TITLE_MATCH
+
+
+def test_short_captions_decide_nothing():
+    assert dup.title_similarity("Wow", "Wow look at this dog") is None
+    assert dup.title_similarity("Wow!!", "wow") is None
+    # Five words is enough to judge.
+    assert dup.title_similarity("Big news about the house", "Big news about the house") == 1.0
+
+
+def test_caption_prefix_only_counts_when_cut_off():
+    long_caption = ("This lecture covers agents, harnesses and loops, and then spends "
+                    "an hour on evaluation, cost and how to ship it to real users")
+    whole = "This lecture covers agents, harnesses and loops"
+    # A complete caption that only shares a start with a longer one isn't a match...
+    assert dup.title_similarity(whole, long_caption) < dup.TITLE_MATCH
+    # ...but the same words cut off with "..." or "\u2026" are.
+    assert dup.title_similarity(whole + "...", long_caption) >= dup.TITLE_MATCH
+    assert dup.title_similarity(whole + "\u2026", long_caption) >= dup.TITLE_MATCH
+
+
+def test_short_caption_goes_to_the_opening_check():
+    info = {**NEW_INFO, "description": "Wow look at this dog"}
+    videos = {"twitter-111": {"duration": 7650.0, "title": "Wow", "opening": OPENING}}
+    match, candidates = dup.check_metadata(info, NEW_STEM, videos)
+    assert match is None and candidates == ["twitter-111"]
+
+
+def test_youtube_boilerplate_is_not_a_match():
+    boilerplate = ("This video is sponsored by Acme. Use code HOME for 10% off. "
+                   "Subscribe and hit the bell for a new video every week!")
+    old = {"id": "a", "extractor_key": "Youtube", "duration": 600.0,
+           "title": "Fixing a leaky faucet in ten minutes", "description": boilerplate}
+    new = {**old, "id": "b", "title": "Painting a front door the right way"}
+    videos = {"youtube-a": {"duration": 600.0, "title": dup.caption(old), "opening": OPENING}}
+    match, candidates = dup.check_metadata(new, "youtube-b", videos)
+    assert match is None and candidates == ["youtube-a"]
 
 
 def test_opening_similarity():
     assert dup.opening_similarity(OPENING_RERUN, OPENING) >= dup.OPENING_MATCH
-    assert dup.opening_similarity(OTHER_SPEECH, OPENING) < 0.1
+    assert dup.opening_similarity(OTHER_SPEECH, OPENING) < 0.3
     assert dup.opening_similarity("too short to judge", OPENING) is None
     # A clip that starts partway into the stored opening still matches.
     later = OPENING.split(" ", 8)[-1]
     assert dup.opening_similarity(later, OPENING) >= dup.OPENING_MATCH
+
+
+def test_shared_intro_is_not_a_match():
+    # Two different videos from one channel open with the same 14 words.
+    assert dup.opening_similarity(INTRO, OPENING) is None  # too little to judge
+    assert dup.opening_similarity(OTHER_SPEECH, OPENING) < dup.OPENING_MATCH
 
 
 def test_metadata_check_matches_on_length_and_caption():
@@ -263,3 +323,42 @@ def test_empty_folder_runs_normally(tmp_path, pipeline):
     assert run(tmp_path / "new") == 0
     assert calls["transcribe"] == 1
     assert NEW_STEM in dup.load_index(tmp_path / "new")
+
+
+@pytest.mark.parametrize("videos", [
+    {"x": "str"},
+    {"x": None},
+    {"x": {"duration": "abc"}},
+    {"x": {"duration": 7650.0, "title": 5, "opening": OPENING}},
+    {"x": {"duration": 7650.0, "title": None, "opening": ["not", "text"]}},
+    ["not", "a", "dict"],
+])
+def test_bad_index_means_a_normal_run(tmp_path, pipeline, videos):
+    calls, _ = pipeline
+    (tmp_path / dup.INDEX_NAME).write_text(json.dumps({"videos": videos}), encoding="utf-8")
+
+    assert run(tmp_path) == 0
+    assert calls["transcribe"] == 1
+    assert NEW_STEM in dup.load_index(tmp_path)
+
+
+def test_read_drops_unusable_entries(tmp_path):
+    good = {"duration": 60.0, "opening": "hi"}
+    (tmp_path / dup.INDEX_NAME).write_text(json.dumps({"videos": {
+        "a": "str", "b": None, "c": {"duration": "abc"}, "d": {"duration": True},
+        "e": good, "f": {"duration": None},
+    }}), encoding="utf-8")
+    assert dup.load_index(tmp_path) == {"e": good, "f": {"duration": None}}
+
+
+def test_index_write_error_only_warns(tmp_path, pipeline, monkeypatch, capsys):
+    calls, _ = pipeline
+
+    def broken(*args, **kwargs):
+        raise PermissionError("read-only folder")
+
+    monkeypatch.setattr(dup, "record", broken)
+    assert run(tmp_path) == 0
+    assert (tmp_path / f"{NEW_STEM}.txt").exists()
+    err = capsys.readouterr().err
+    assert "duplicate index wasn't updated" in err and "Traceback" not in err
