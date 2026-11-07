@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Optional, Sequence
@@ -125,6 +126,52 @@ class _Progress:
             sys.stderr.flush()
 
 
+def find_duplicate(args: argparse.Namespace, info: dict, stem: str, detail):
+    """An earlier transcript in the output folder that is likely this video.
+
+    Check 1 compares length and caption from the metadata. Only when that
+    leaves a same-length video undecided does check 2 transcribe the first
+    minute and a half and compare openings. Returns a duplicates.Match or None.
+    """
+    from . import duplicates as dup
+    from .download import download_opening
+    from .transcriber import transcribe_opening
+
+    # The check is a shortcut, never a reason to fail: any error in it (an
+    # index we can't read, a download hiccup, the check's model failing to
+    # download) just means a normal run.
+    try:
+        videos = dup.load_index(args.output_dir)
+        match, candidates = dup.check_metadata(info, stem, videos)
+    except Exception as e:
+        detail(f"Couldn't read the transcript index, so skipping the duplicate check ({e})")
+        return None
+    if match or not candidates:
+        return match
+
+    started = time.monotonic()
+    detail(f"Same length as {len(candidates)} earlier transcript(s); "
+           "checking the opening")
+    cached = args.output_dir / f"{stem}.m4a"
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            clip = cached if cached.exists() else download_opening(
+                info, Path(tmp), dup.CLIP_SECONDS, verbose=args.verbose,
+                cookies_from_browser=args.cookies_from_browser,
+            )
+            text = transcribe_opening(
+                clip, dup.CLIP_SECONDS, model_size=dup.OPENING_MODEL,
+                language=args.language, device=args.device,
+            )
+        match = dup.check_opening(text, info.get("duration"), candidates, videos)
+    except Exception as e:
+        detail(f"Couldn't check the opening, so transcribing anyway ({e})")
+        return None
+    detail(f"Opening checked in {_fmt_duration(time.monotonic() - started)}"
+           + ("" if match else ": no match"))
+    return match
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     # Never crash on a transcript character the console encoding can't show
@@ -134,6 +181,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             stream.reconfigure(errors="replace")
 
     from .download import DownloadFailed, download_audio, resolve_video
+    from .duplicates import record
     from .transcriber import transcribe
 
     color = _use_color()
@@ -171,6 +219,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             detail(str(path))
         return 0
 
+    if not args.force:
+        match = find_duplicate(args, info, stem, detail)
+        if match:
+            entry = match.entry
+            when = f" on {entry['transcribed_at']}" if entry.get("transcribed_at") else ""
+            status(_style("! ", "1;33", color)
+                   + _style("Likely already transcribed", "1", color)
+                   + f" as {match.transcript_path(args.output_dir).name}{when}")
+            detail(match.reason)
+            detail(str(match.transcript_path(args.output_dir)))
+            if entry.get("url"):
+                detail(f"from {entry['url']}")
+            detail("If this is a different video, rerun with --force to transcribe it anyway.")
+            return 0
+
     progress = _Progress(enabled=not args.verbose)
     try:
         audio_path = download_audio(
@@ -206,6 +269,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     for fmt, path in zip(args.formats, outputs):
         path.write_text(FORMATTERS[fmt](segments), encoding="utf-8")
+    transcript = outputs[args.formats.index("txt")] if "txt" in args.formats else outputs[0]
+    try:
+        record(args.output_dir, stem, info, args.url, audio_seconds, segments,
+               transcript.name)
+    except OSError as e:
+        status(_style("! ", "1;33", color)
+               + f"Transcripts saved, but the duplicate index wasn't updated ({e})")
 
     status("")
     status(_style("\u2713 ", "1;32", color)
