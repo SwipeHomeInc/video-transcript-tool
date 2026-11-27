@@ -201,3 +201,24 @@ def transcribe(
     if detected:
         return segments, detected[0], detected[1], info.duration
     return segments, info.language, info.language_probability, info.duration
+
+
+def transcribe_opening(
+    audio_path: Path,
+    seconds: float,
+    model_size: str = "small",
+    language: Optional[str] = None,
+    device: str = "auto",
+) -> str:
+    """Text of the first `seconds` of a file. Only that clip is decoded."""
+    sanitize_proxy_env()
+    from huggingface_hub.utils import logging as hf_logging
+    from faster_whisper import WhisperModel
+
+    hf_logging.set_verbosity_error()
+    model = WhisperModel(model_size, device=device, compute_type="auto")
+    segments, _ = model.transcribe(
+        load_audio(audio_path, start=0, length=seconds), beam_size=5,
+        language=language, vad_filter=True,
+    )
+    return " ".join(s.text.strip() for s in segments)

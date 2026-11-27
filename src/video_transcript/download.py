@@ -152,3 +152,35 @@ def download_audio(
     if not audio_path.exists():
         raise RuntimeError(f"yt-dlp finished but {audio_path} was not created")
     return audio_path
+
+
+def download_opening(
+    info: dict,
+    work_dir: Path,
+    seconds: float,
+    verbose: bool = False,
+    cookies_from_browser: Optional[str] = None,
+) -> Path:
+    """Download only the first `seconds` of a video's audio into work_dir.
+
+    Used to compare a new video's opening with earlier transcripts without
+    paying for the whole download. Return the clip's path.
+    """
+    import yt_dlp
+    from yt_dlp.utils import download_range_func
+
+    work_dir.mkdir(parents=True, exist_ok=True)
+    opts = _base_opts(verbose, cookies_from_browser)
+    opts.update({
+        "download_ranges": download_range_func(None, [(0, seconds)]),
+        "outtmpl": str(work_dir / "opening.%(ext)s"),
+    })
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            ydl.process_ie_result(info, download=True)
+    except yt_dlp.utils.DownloadError as e:
+        raise DownloadFailed(explain_error(str(e))) from e
+    clips = [p for p in work_dir.glob("opening.*") if not p.name.endswith(".part")]
+    if not clips:
+        raise RuntimeError("yt-dlp finished but the opening clip was not created")
+    return clips[0]
